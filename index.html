@@ -114,8 +114,10 @@
     let info = document.getElementById('info');
     let resetBtn = document.getElementById('reset-btn');
     let gameActive = true;
-    let lastTouchOrder = [];
     let pulseTimeout = null;
+
+    // Store the timestamp for each touch to reliably find the last one
+    let touchTimestamps = {};
 
     function getTouchPos(touch) {
       const rect = chooserArea.getBoundingClientRect();
@@ -157,9 +159,7 @@
         if (!(t.identifier in touches) && Object.keys(touches).length < MAX_FINGERS) {
           let pos = getTouchPos(t);
           touches[t.identifier] = pos;
-          lastTouchOrder.push(t.identifier);
-          // Remove IDs from lastTouchOrder that are no longer active
-          lastTouchOrder = lastTouchOrder.filter(id => id in touches);
+          touchTimestamps[t.identifier] = Date.now();
         }
       }
       updateDots();
@@ -187,8 +187,8 @@
       if (!gameActive) return;
       for (let t of e.changedTouches) {
         delete touches[t.identifier];
+        delete touchTimestamps[t.identifier];
       }
-      lastTouchOrder = lastTouchOrder.filter(id => id in touches);
       updateDots();
       if (Object.keys(touches).length < 2) {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
@@ -223,16 +223,23 @@
       doPulse();
     }
 
-    // Letzter Finger hat fast immer (99%) die Chance ausgewählt zu werden
+    // New winner logic: last finger (by timestamp) has 90% chance, others 10%
     function chooseRandomFinger() {
-      // Use the current touches for winner selection
       let ids = Object.keys(touches);
       if (ids.length < 2) return;
-      // Find the last active finger from lastTouchOrder
-      let lastId = [...lastTouchOrder].reverse().find(id => ids.includes(id));
+
+      // Find the id with the highest timestamp (last finger)
+      let lastId = null;
+      let maxTime = -Infinity;
+      for (let id of ids) {
+        if (touchTimestamps[id] > maxTime) {
+          maxTime = touchTimestamps[id];
+          lastId = id;
+        }
+      }
+
       let winnerId;
-      // Set the chance for the last finger to almost always win (e.g. 99%)
-      if (lastId && Math.random() < 0.99) {
+      if (lastId && Math.random() < 0.9) {
         winnerId = lastId;
       } else {
         let otherIds = ids.filter(id => id !== lastId);
@@ -242,6 +249,7 @@
           winnerId = otherIds[Math.floor(Math.random() * otherIds.length)];
         }
       }
+
       // Only show the winner dot, remove all others
       for (let id in dots) {
         if (id === winnerId) {
@@ -262,7 +270,7 @@
       }
       dots = {};
       touches = {};
-      lastTouchOrder = [];
+      touchTimestamps = {};
       info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
       gameActive = true;
       resetBtn.style.display = 'none';
