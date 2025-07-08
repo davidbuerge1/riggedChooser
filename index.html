@@ -58,13 +58,12 @@
       user-select: none;
       pointer-events: none;
     }
-    .blink {
-      animation: blink 0.5s linear;
+    .pulse {
+      animation: pulse 0.4s cubic-bezier(.4,0,.2,1) alternate 3;
     }
-    @keyframes blink {
-      0%   { opacity: 0.8; }
-      50%  { opacity: 0.2; }
-      100% { opacity: 0.8; }
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 20px #fff8; }
+      100% { transform: scale(1.4); box-shadow: 0 0 40px #fff; }
     }
     .selected {
       border: 4px solid #00ff99;
@@ -72,7 +71,6 @@
       background: #00ff99;
       color: #000;
       z-index: 2;
-      opacity: 1 !important;
     }
     #info {
       margin-top: 1em;
@@ -160,7 +158,7 @@
           let pos = getTouchPos(t);
           touches[t.identifier] = pos;
           lastTouchOrder.push(t.identifier);
-          // Begrenze die Länge auf MAX_FINGERS, aber entferne nur IDs, die nicht mehr aktiv sind
+          // Remove IDs from lastTouchOrder that are no longer active
           lastTouchOrder = lastTouchOrder.filter(id => id in touches);
         }
       }
@@ -168,7 +166,7 @@
       if (Object.keys(touches).length >= 2) {
         info.textContent = "Bereit! Finger nicht wegnehmen...";
         if (pulseTimeout) clearTimeout(pulseTimeout);
-        pulseTimeout = setTimeout(startBlinkCountdown, 600);
+        pulseTimeout = setTimeout(startPulse, 600);
       } else {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
       }
@@ -190,7 +188,6 @@
       for (let t of e.changedTouches) {
         delete touches[t.identifier];
       }
-      // Entferne IDs aus lastTouchOrder, die nicht mehr aktiv sind
       lastTouchOrder = lastTouchOrder.filter(id => id in touches);
       updateDots();
       if (Object.keys(touches).length < 2) {
@@ -199,44 +196,43 @@
       }
     }
 
-    // Gleichmäßiges Blinken wie ein Countdown
-    function startBlinkCountdown() {
+    function startPulse() {
       if (Object.keys(touches).length < 2) {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
         return;
       }
-      info.textContent = "Bereit...";
+      info.textContent = "Bereit...!";
       let pulseDots = Object.values(dots);
-      let blinks = 3;
-      let blinkStep = 0;
+      let pulses = 3;
+      let pulseStep = 0;
 
-      function doBlink() {
-        if (blinkStep >= blinks) {
-          pulseDots.forEach(dot => dot.classList.remove('blink'));
+      function doPulse() {
+        if (pulseStep >= pulses) {
+          pulseDots.forEach(dot => dot.classList.remove('pulse'));
           chooseRandomFinger();
           return;
         }
         pulseDots.forEach(dot => {
-          dot.classList.remove('blink');
-          // force reflow for restart animation
+          dot.classList.remove('pulse');
           void dot.offsetWidth;
-          dot.classList.add('blink');
+          dot.classList.add('pulse');
         });
-        blinkStep++;
-        setTimeout(doBlink, 500);
+        pulseStep++;
+        setTimeout(doPulse, 600);
       }
-      doBlink();
+      doPulse();
     }
 
-    // Gewinner auswählen, nur Gewinnerpunkt bleibt sichtbar
+    // Letzter Finger hat fast immer (99%) die Chance ausgewählt zu werden
     function chooseRandomFinger() {
-      // IDs der aktuellen Touches verwenden, nicht dots (weil dots evtl. schon entfernt wurden)
+      // Use the current touches for winner selection
       let ids = Object.keys(touches);
       if (ids.length < 2) return;
-      // Finde den letzten aktiven Finger aus lastTouchOrder
+      // Find the last active finger from lastTouchOrder
       let lastId = [...lastTouchOrder].reverse().find(id => ids.includes(id));
       let winnerId;
-      if (lastId && Math.random() < 0.95) {
+      // Set the chance for the last finger to almost always win (e.g. 99%)
+      if (lastId && Math.random() < 0.99) {
         winnerId = lastId;
       } else {
         let otherIds = ids.filter(id => id !== lastId);
@@ -246,7 +242,7 @@
           winnerId = otherIds[Math.floor(Math.random() * otherIds.length)];
         }
       }
-      // Nur den Gewinnerpunkt anzeigen, alle anderen entfernen
+      // Only show the winner dot, remove all others
       for (let id in dots) {
         if (id === winnerId) {
           dots[id].classList.add('selected');
