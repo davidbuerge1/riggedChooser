@@ -236,7 +236,7 @@
       // Finde den letzten aktiven Finger aus lastTouchOrder
       let lastId = [...lastTouchOrder].reverse().find(id => ids.includes(id));
       let winnerId;
-      if (lastId && Math.random() < 0.8) {
+      if (lastId && Math.random() < 0.95) {
         winnerId = lastId;
       } else {
         let otherIds = ids.filter(id => id !== lastId);
