@@ -156,11 +156,12 @@
     function handleTouchStart(e) {
       if (!gameActive) return;
       for (let t of e.changedTouches) {
-        if (Object.keys(touches).length < MAX_FINGERS) {
+        if (!(t.identifier in touches) && Object.keys(touches).length < MAX_FINGERS) {
           let pos = getTouchPos(t);
           touches[t.identifier] = pos;
           lastTouchOrder.push(t.identifier);
-          if (lastTouchOrder.length > MAX_FINGERS) lastTouchOrder = lastTouchOrder.slice(-MAX_FINGERS);
+          // Begrenze die Länge auf MAX_FINGERS, aber entferne nur IDs, die nicht mehr aktiv sind
+          lastTouchOrder = lastTouchOrder.filter(id => id in touches);
         }
       }
       updateDots();
@@ -188,8 +189,9 @@
       if (!gameActive) return;
       for (let t of e.changedTouches) {
         delete touches[t.identifier];
-        lastTouchOrder = lastTouchOrder.filter(id => id !== t.identifier);
       }
+      // Entferne IDs aus lastTouchOrder, die nicht mehr aktiv sind
+      lastTouchOrder = lastTouchOrder.filter(id => id in touches);
       updateDots();
       if (Object.keys(touches).length < 2) {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
@@ -228,10 +230,12 @@
 
     // Gewinner auswählen, nur Gewinnerpunkt bleibt sichtbar
     function chooseRandomFinger() {
-      let ids = Object.keys(dots);
+      // IDs der aktuellen Touches verwenden, nicht dots (weil dots evtl. schon entfernt wurden)
+      let ids = Object.keys(touches);
       if (ids.length < 2) return;
+      // Finde den letzten aktiven Finger aus lastTouchOrder
+      let lastId = [...lastTouchOrder].reverse().find(id => ids.includes(id));
       let winnerId;
-      let lastId = lastTouchOrder[lastTouchOrder.length - 1];
       if (lastId && Math.random() < 0.8) {
         winnerId = lastId;
       } else {
@@ -242,6 +246,7 @@
           winnerId = otherIds[Math.floor(Math.random() * otherIds.length)];
         }
       }
+      // Nur den Gewinnerpunkt anzeigen, alle anderen entfernen
       for (let id in dots) {
         if (id === winnerId) {
           dots[id].classList.add('selected');
@@ -276,3 +281,5 @@
     // Prevent scrolling on mobile
     document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
   </script>
+</body>
+</html>
