@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choozy</title>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at 50% 30%, #222 60%, #000 100%);
+      color: #fff;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      touch-action: none;
+      min-height: 100vh;
+    }
+    header {
+      width: 100vw;
+      text-align: center;
+      margin-top: 2.5vh;
+      margin-bottom: 1vh;
+      letter-spacing: 0.1em;
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #00ff99;
+      text-shadow: 0 2px 24px #00ff9955, 0 1px 0 #fff4;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      user-select: none;
+    }
+    #chooser-area {
+      position: relative;
+      width: 100vw;
+      height: 70vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .finger-dot {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #fff;
+      opacity: 0.8;
+      box-shadow: 0 0 20px #fff8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: box-shadow 0.2s;
+      border: 3px solid #fff;
+      font-size: 1.2em;
+      user-select: none;
+      pointer-events: none;
+    }
+    .pulse {
+      animation: pulse 0.4s cubic-bezier(.4,0,.2,1) alternate 3;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 20px #fff8; }
+      100% { transform: scale(1.4); box-shadow: 0 0 40px #fff; }
+    }
+    .selected {
+      border: 4px solid #00ff99;
+      box-shadow: 0 0 40px #00ff99, 0 0 80px #00ff99;
+      background: #00ff99;
+      color: #000;
+      z-index: 2;
+    }
+    #info {
+      margin-top: 1em;
+      font-size: 1.2em;
+      text-align: center;
+      min-height: 2em;
+      text-shadow: 0 1px 8px #000a;
+    }
+    #reset-btn {
+      margin-top: 2em;
+      padding: 0.8em 2em;
+      font-size: 1.1em;
+      border: none;
+      border-radius: 1.5em;
+      background: #222;
+      color: #fff;
+      box-shadow: 0 2px 8px #000a;
+      cursor: pointer;
+      display: none;
+      transition: background 0.2s;
+    }
+    #reset-btn:hover {
+      background: #00ff99;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <header>Choozy</header>
+  <div id="chooser-area"></div>
+  <div id="info">Lege mindestens 2 Finger auf den Bildschirm!</div>
+  <button id="reset-btn">Nochmal</button>
+  <script>
+    const COLORS = [
+      "#ff5252", "#40c4ff", "#ffd740", "#69f0ae", "#e040fb", "#ffab40"
+    ];
+    const MAX_FINGERS = 6;
+    let touches = {};
+    let dots = {};
+    let chooserArea = document.getElementById('chooser-area');
+    let info = document.getElementById('info');
+    let resetBtn = document.getElementById('reset-btn');
+    let gameActive = true;
+    let lastTouchOrder = [];
+
+    function getTouchPos(touch) {
+      const rect = chooserArea.getBoundingClientRect();
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    }
+
+    function updateDots() {
+      // Remove dots for ended touches
+      for (let id in dots) {
+        if (!(id in touches)) {
+          dots[id].remove();
+          delete dots[id];
+        }
+      }
+      // Add or update dots for current touches
+      let i = 0;
+      for (let id in touches) {
+        let pos = touches[id];
+        let dot = dots[id];
+        if (!dot) {
+          dot = document.createElement('div');
+          dot.className = 'finger-dot';
+          dot.style.background = COLORS[i % COLORS.length];
+          chooserArea.appendChild(dot);
+          dots[id] = dot;
+        }
+        dot.style.left = (pos.x - 30) + 'px';
+        dot.style.top = (pos.y - 30) + 'px';
+        i++;
+      }
+    }
+
+    function handleTouchStart(e) {
+      if (!gameActive) return;
+      for (let t of e.changedTouches) {
+        if (Object.keys(touches).length < MAX_FINGERS) {
+          let pos = getTouchPos(t);
+          touches[t.identifier] = pos;
+          // Save order for last finger logic
+          lastTouchOrder.push(t.identifier);
+          if (lastTouchOrder.length > MAX_FINGERS) lastTouchOrder = lastTouchOrder.slice(-MAX_FINGERS);
+        }
+      }
+      updateDots();
+      if (Object.keys(touches).length >= 2) {
+        info.textContent = "Bereit! Finger nicht wegnehmen...";
+        setTimeout(startPulse, 600);
+      } else {
+        info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
+      }
+    }
+
+    function handleTouchMove(e) {
+      if (!gameActive) return;
+      for (let t of e.changedTouches) {
+        if (touches[t.identifier]) {
+          let pos = getTouchPos(t);
+          touches[t.identifier] = pos;
+        }
+      }
+      updateDots();
+    }
+
+    function handleTouchEnd(e) {
+      if (!gameActive) return;
+      for (let t of e.changedTouches) {
+        delete touches[t.identifier];
+        // Remove from order array
+        lastTouchOrder = lastTouchOrder.filter(id => id !== t.identifier);
+      }
+      updateDots();
+      if (Object.keys(touches).length < 2) {
+        info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
+      }
+    }
+
+    function startPulse() {
+      if (Object.keys(touches).length < 2) {
+        info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
+        return;
+      }
+      info.textContent = "Bereit...!";
+      let pulseDots = Object.values(dots);
+      pulseDots.forEach(dot => dot.classList.add('pulse'));
+      setTimeout(() => {
+        pulseDots.forEach(dot => dot.classList.remove('pulse'));
+        setTimeout(() => {
+          pulseDots.forEach(dot => dot.classList.add('pulse'));
+          setTimeout(() => {
+            pulseDots.forEach(dot => dot.classList.remove('pulse'));
+            setTimeout(() => {
+              pulseDots.forEach(dot => dot.classList.add('pulse'));
+              setTimeout(() => {
+                pulseDots.forEach(dot => dot.classList.remove('pulse'));
+                chooseRandomFinger();
+              }, 400);
+            }, 200);
+          }, 400);
+        }, 200);
+      }, 400);
+    }
+
+    // Letzter Finger hat ca. 80% Chance ausgewählt zu werden
+    function chooseRandomFinger() {
+      let ids = Object.keys(dots);
+      if (ids.length < 2) return;
+      let winnerId;
+      let lastId = lastTouchOrder[lastTouchOrder.length - 1];
+      if (lastId && Math.random() < 0.8) {
+        winnerId = lastId;
+      } else {
+        let otherIds = ids.filter(id => id !== lastId);
+        if (otherIds.length === 0) {
+          winnerId = lastId;
+        } else {
+          winnerId = otherIds[Math.floor(Math.random() * otherIds.length)];
+        }
+      }
+      for (let id in dots) {
+        if (id === winnerId) {
+          dots[id].classList.add('selected');
+        } else {
+          dots[id].style.opacity = 0.3;
+        }
+      }
+      info.textContent = "Ausgewählt!";
+      gameActive = false;
+      resetBtn.style.display = 'block';
+    }
+
+    function resetGame() {
+      for (let id in dots) {
+        dots[id].remove();
+      }
+      dots = {};
+      touches = {};
+      lastTouchOrder = [];
+      info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
+      gameActive = true;
+      resetBtn.style.display = 'none';
+    }
+
+    chooserArea.addEventListener('touchstart', handleTouchStart, {passive: false});
+    chooserArea.addEventListener('touchmove', handleTouchMove, {passive: false});
+    chooserArea.addEventListener('touchend', handleTouchEnd, {passive: false});
+    chooserArea.addEventListener('touchcancel', handleTouchEnd, {passive: false});
+    resetBtn.addEventListener('click', resetGame);
+
+    // Prevent scrolling on mobile
+    document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
+  </script>
+</body>
+</html>
