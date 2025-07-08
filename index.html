@@ -39,6 +39,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      touch-action: none;
     }
     .finger-dot {
       position: absolute;
@@ -51,18 +52,19 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      transition: box-shadow 0.2s;
+      transition: box-shadow 0.2s, background 0.2s, border 0.2s;
       border: 3px solid #fff;
       font-size: 1.2em;
       user-select: none;
       pointer-events: none;
     }
-    .pulse {
-      animation: pulse 0.4s cubic-bezier(.4,0,.2,1) alternate 3;
+    .blink {
+      animation: blink 0.5s linear;
     }
-    @keyframes pulse {
-      0% { transform: scale(1); box-shadow: 0 0 20px #fff8; }
-      100% { transform: scale(1.4); box-shadow: 0 0 40px #fff; }
+    @keyframes blink {
+      0%   { opacity: 0.8; }
+      50%  { opacity: 0.2; }
+      100% { opacity: 0.8; }
     }
     .selected {
       border: 4px solid #00ff99;
@@ -70,6 +72,7 @@
       background: #00ff99;
       color: #000;
       z-index: 2;
+      opacity: 1 !important;
     }
     #info {
       margin-top: 1em;
@@ -114,6 +117,7 @@
     let resetBtn = document.getElementById('reset-btn');
     let gameActive = true;
     let lastTouchOrder = [];
+    let pulseTimeout = null;
 
     function getTouchPos(touch) {
       const rect = chooserArea.getBoundingClientRect();
@@ -155,7 +159,6 @@
         if (Object.keys(touches).length < MAX_FINGERS) {
           let pos = getTouchPos(t);
           touches[t.identifier] = pos;
-          // Save order for last finger logic
           lastTouchOrder.push(t.identifier);
           if (lastTouchOrder.length > MAX_FINGERS) lastTouchOrder = lastTouchOrder.slice(-MAX_FINGERS);
         }
@@ -163,7 +166,8 @@
       updateDots();
       if (Object.keys(touches).length >= 2) {
         info.textContent = "Bereit! Finger nicht wegnehmen...";
-        setTimeout(startPulse, 600);
+        if (pulseTimeout) clearTimeout(pulseTimeout);
+        pulseTimeout = setTimeout(startBlinkCountdown, 600);
       } else {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
       }
@@ -184,42 +188,45 @@
       if (!gameActive) return;
       for (let t of e.changedTouches) {
         delete touches[t.identifier];
-        // Remove from order array
         lastTouchOrder = lastTouchOrder.filter(id => id !== t.identifier);
       }
       updateDots();
       if (Object.keys(touches).length < 2) {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
+        if (pulseTimeout) clearTimeout(pulseTimeout);
       }
     }
 
-    function startPulse() {
+    // Gleichmäßiges Blinken wie ein Countdown
+    function startBlinkCountdown() {
       if (Object.keys(touches).length < 2) {
         info.textContent = `Lege mindestens 2 Finger auf den Bildschirm!`;
         return;
       }
-      info.textContent = "Bereit...!";
+      info.textContent = "Bereit...";
       let pulseDots = Object.values(dots);
-      pulseDots.forEach(dot => dot.classList.add('pulse'));
-      setTimeout(() => {
-        pulseDots.forEach(dot => dot.classList.remove('pulse'));
-        setTimeout(() => {
-          pulseDots.forEach(dot => dot.classList.add('pulse'));
-          setTimeout(() => {
-            pulseDots.forEach(dot => dot.classList.remove('pulse'));
-            setTimeout(() => {
-              pulseDots.forEach(dot => dot.classList.add('pulse'));
-              setTimeout(() => {
-                pulseDots.forEach(dot => dot.classList.remove('pulse'));
-                chooseRandomFinger();
-              }, 400);
-            }, 200);
-          }, 400);
-        }, 200);
-      }, 400);
+      let blinks = 3;
+      let blinkStep = 0;
+
+      function doBlink() {
+        if (blinkStep >= blinks) {
+          pulseDots.forEach(dot => dot.classList.remove('blink'));
+          chooseRandomFinger();
+          return;
+        }
+        pulseDots.forEach(dot => {
+          dot.classList.remove('blink');
+          // force reflow for restart animation
+          void dot.offsetWidth;
+          dot.classList.add('blink');
+        });
+        blinkStep++;
+        setTimeout(doBlink, 500);
+      }
+      doBlink();
     }
 
-    // Letzter Finger hat ca. 80% Chance ausgewählt zu werden
+    // Gewinner auswählen, nur Gewinnerpunkt bleibt sichtbar
     function chooseRandomFinger() {
       let ids = Object.keys(dots);
       if (ids.length < 2) return;
@@ -239,7 +246,8 @@
         if (id === winnerId) {
           dots[id].classList.add('selected');
         } else {
-          dots[id].style.opacity = 0.3;
+          dots[id].remove();
+          delete dots[id];
         }
       }
       info.textContent = "Ausgewählt!";
@@ -268,5 +276,3 @@
     // Prevent scrolling on mobile
     document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
   </script>
-</body>
-</html>
